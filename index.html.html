@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket Filter & Distribution Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f1f4f8;
+    --bg2: #ffffff;
+    --bg3: #e8ecf2;
+    --border: #d0d7e3;
+    --text: #18202e;
+    --muted: #6b7898;
+    --radius: 8px;
+    --font: 'DM Sans', system-ui, sans-serif;
+    --mono: 'DM Mono', monospace;
+
+    /* MA brand */
+    --ma-accent: #2563eb;
+    --ma-accent2: #16a34a;
+    --ma-warn: #b45309;
+    --ma-danger: #dc2626;
+    --ma-dup: #92400e;
+    --ma-dup-bg: rgba(180,130,0,0.08);
+
+    /* FF brand */
+    --ff-accent: #7c3aed;
+    --ff-accent2: #059669;
+    --ff-warn: #d97706;
+    --ff-danger: #e11d48;
+    --ff-dup: #92400e;
+    --ff-dup-bg: rgba(180,130,0,0.08);
+
+    --accent: var(--ma-accent);
+    --accent2: var(--ma-accent2);
+    --warn: var(--ma-warn);
+    --danger: var(--ma-danger);
+    --dup: var(--ma-dup);
+    --dup-bg: var(--ma-dup-bg);
+  }
+
+  body.ff-mode {
+    --accent: var(--ff-accent);
+    --accent2: var(--ff-accent2);
+    --warn: var(--ff-warn);
+    --danger: var(--ff-danger);
+    --dup: var(--ff-dup);
+    --dup-bg: var(--ff-dup-bg);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+  }
+
+  .brand-switcher {
+    display: flex;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .brand-btn {
+    padding: 5px 14px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font);
+    letter-spacing: 0.3px;
+    transition: all 0.18s;
+  }
+
+  .brand-btn.active-ma {
+    background: var(--ma-accent);
+    color: #fff;
+  }
+
+  .brand-btn.active-ff {
+    background: var(--ff-accent);
+    color: #fff;
+  }
+
+  header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  /* ── LAYOUT ── */
+  .shell {
+    display: grid;
+    grid-template-columns: 286px 1fr;
+    height: calc(100vh - 52px);
+    overflow: hidden;
+  }
+
+  aside {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  main {
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 11px 12px;
+  }
+
+  .sec-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 7px;
+  }
+
+  /* ── UPLOAD ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 20px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,0,0,.03);
+  }
+
+  .upload-zone p { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 6px; }
+  .upload-zone strong { color: var(--text); }
+  input[type=file] { display: none; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 13px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity .15s, transform .1s;
+    font-family: var(--font);
+    white-space: nowrap;
+  }
+
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+
+  .btn-primary  { background: var(--accent);  color: #fff; }
+  .btn-success  { background: var(--accent2); color: #fff; }
+  .btn-warn     { background: var(--warn);    color: #fff; }
+  .btn-danger   { background: var(--danger);  color: #fff; }
+  .btn-ghost    { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-sm { padding: 3px 8px; font-size: 11px; border-radius: 4px; }
+
+  /* ── STATS ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stat-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+
+  .stat-box .num { font-size: 20px; font-weight: 700; line-height: 1; font-family: var(--mono); }
+  .stat-box .lbl { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .stat-box.c-blue  .num { color: var(--accent); }
+  .stat-box.c-green .num { color: var(--accent2); }
+  .stat-box.c-warn  .num { color: var(--warn); }
+  .stat-box.c-red   .num { color: var(--danger); }
+
+  /* ── PIPELINE ── */
+  .pipeline { display: flex; flex-direction: column; gap: 0; }
+  .p-step { display: flex; align-items: center; gap: 7px; padding: 4px 5px; border-radius: 4px; font-size: 11px; color: var(--muted); }
+  .p-step.done { color: var(--accent2); }
+  .p-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background .25s; }
+  .p-step.done .p-dot { background: var(--accent2); }
+
+  /* ── STEP HEADERS ── */
+  .step-hdr { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .step-num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 10px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* ── FILTER LISTS ── */
+  .filter-scroll { max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+
+  .f-item { display: flex; align-items: center; gap: 7px; padding: 3px 6px; border-radius: 4px; cursor: pointer; transition: background .12s; font-size: 11px; }
+  .f-item:hover { background: rgba(0,0,0,.05); }
+  .f-item input[type=checkbox] { width: 12px; height: 12px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .f-item label { cursor: pointer; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .f-cnt { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1px 5px; font-size: 10px; color: var(--muted); flex-shrink: 0; font-family: var(--mono); }
+
+  /* ── INPUTS ── */
+  .txt-input {
+    background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 9px; width: 100%; font-size: 11px; font-family: var(--font);
+  }
+  .txt-input:focus { outline: none; border-color: var(--accent); }
+
+  .textarea-input {
+    background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 9px; width: 100%; font-size: 11px; font-family: var(--font);
+    resize: vertical; min-height: 50px;
+  }
+  .textarea-input:focus { outline: none; border-color: var(--accent); }
+
+  /* ── AGENT MANAGER ── */
+  .agent-roster {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .agent-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 11px;
+  }
+
+  .agent-row .agent-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  .agent-row .agent-name-label { flex: 1; font-weight: 500; }
+
+  .agent-row .shift-toggle {
+    display: flex;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .agent-row .shift-toggle button {
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font);
+    transition: all 0.15s;
+  }
+
+  .agent-row .shift-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .agent-row .shift-toggle button.half-active {
+    background: var(--warn);
+    color: #fff;
+  }
+
+  .agent-row .remove-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font);
+    transition: color 0.15s;
+  }
+
+  .agent-row .remove-btn:hover { color: var(--danger); }
+
+  .add-agent-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .add-agent-row input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-family: var(--font);
+  }
+
+  .add-agent-row input:focus { outline: none; border-color: var(--accent); }
+
+  /* ── TABS ── */
+  .tab-bar {
+    display: flex;
+    background: var(--bg2);
+    border-radius: var(--radius) var(--radius) 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    overflow: hidden;
+  }
+
+  .tab-btn {
+    padding: 9px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    background: none;
+    border-top: none; border-left: none; border-right: none;
+    transition: color .15s, border-color .15s;
+    font-family: var(--font);
+  }
+
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── TABLE ── */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead th {
+    background: var(--bg3); padding: 7px 10px; text-align: left;
+    font-size: 10px; font-weight: 700; letter-spacing: .4px; color: var(--muted);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: rgba(0,0,0,.03); }
+  tbody td { padding: 6px 10px; color: var(--text); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tbody tr.dup-row { background: var(--dup-bg); }
+  tbody tr.dup-row td:first-child { color: var(--dup); font-weight: 700; }
+
+  /* ── TAGS ── */
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: .2px; }
+  .tag-dup { background: rgba(255,200,0,.15); color: var(--dup); border: 1px solid rgba(255,200,0,.3); }
+  .tag-ok  { background: rgba(0,200,140,.12); color: var(--accent2); border: 1px solid rgba(0,200,140,.25); }
+
+  /* ── AGENT SECTIONS ── */
+  .agent-block { margin-bottom: 16px; }
+  .agent-hdr {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 12px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; border-bottom: none;
+  }
+  .agent-badge { display: inline-flex; align-items: center; justify-content: center; padding: 2px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; color: #fff; }
+  .agent-hdr .a-name { font-weight: 700; font-size: 12px; }
+  .agent-hdr .a-shift { font-size: 10px; color: var(--muted); }
+  .agent-hdr .a-cnt  { margin-left: auto; color: var(--muted); font-size: 11px; font-family: var(--mono); }
+  .agent-tbl-wrap { border: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); overflow-x: auto; }
+
+  /* ── LEGEND ── */
+  .legend { display: flex; align-items: center; gap: 12px; margin: 8px 0 6px; font-size: 10px; color: var(--muted); }
+  .l-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── EMPTY STATE ── */
+  .empty { text-align: center; padding: 56px 24px; color: var(--muted); }
+  .empty svg { opacity: .3; margin-bottom: 12px; }
+  .empty h3 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+  .empty p  { font-size: 12px; line-height: 1.6; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 18px; right: 18px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; font-size: 12px; color: var(--text);
+    z-index: 9999; transform: translateY(44px); opacity: 0;
+    transition: transform .2s, opacity .2s; max-width: 270px; pointer-events: none;
+    font-family: var(--font);
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok   { border-left: 3px solid var(--accent2); }
+  .toast.err  { border-left: 3px solid var(--danger); }
+  .toast.info { border-left: 3px solid var(--accent); }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  .mt6 { margin-top: 6px; }
+  .mt8 { margin-top: 8px; }
+
+  .brand-label-ma { color: var(--ma-accent); font-weight: 700; }
+  .brand-label-ff { color: var(--ff-accent); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand-switcher">
+    <button class="brand-btn active-ma" id="btnMA" onclick="switchBrand('MA')">MATRACK</button>
+    <button class="brand-btn" id="btnFF" onclick="switchBrand('FF')">FAMILY1ST</button>
+  </div>
+  <h1 id="headerTitle">Matrack — Ticket Filter & Distribution</h1>
+  <div class="header-actions">
+    <button class="btn btn-success" id="exportFilteredBtn" disabled onclick="exportFiltered()">↓ Export Filtered</button>
+    <button class="btn btn-warn"    id="exportDistBtn"    disabled onclick="exportDistributed()">↓ Export Distributed</button>
+  </div>
+</header>
+
+<div class="shell">
+
+  <aside>
+
+    <!-- Upload -->
+    <div>
+      <div class="sec-label">Data Source</div>
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:var(--muted)">
+          <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 8l-4-4-4 4M12 4v12"/>
+        </svg>
+        <p><strong>Click or drag & drop</strong><br>XLS, XLSX, or CSV</p>
+      </div>
+      <input type="file" id="fileInput" accept=".xls,.xlsx,.csv" onchange="loadFile(this)">
+    </div>
+
+    <!-- Pipeline -->
+    <div class="card">
+      <div class="sec-label">Pipeline</div>
+      <div class="pipeline">
+        <div class="p-step" id="ps1"><div class="p-dot"></div>File loaded</div>
+        <div class="p-step" id="ps2"><div class="p-dot"></div>Duplicates highlighted</div>
+        <div class="p-step" id="ps3"><div class="p-dot"></div>Duplicates removed</div>
+        <div class="p-step" id="ps4"><div class="p-dot"></div>Filters applied</div>
+        <div class="p-step" id="ps5"><div class="p-dot"></div>Distributed to agents</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div>
+      <div class="sec-label">Statistics</div>
+      <div class="stats-grid">
+        <div class="stat-box c-blue" ><div class="num" id="sTot">—</div><div class="lbl">Total rows</div></div>
+        <div class="stat-box c-warn" ><div class="num" id="sDup">—</div><div class="lbl">Duplicates</div></div>
+        <div class="stat-box c-green"><div class="num" id="sUniq">—</div><div class="lbl">Unique</div></div>
+        <div class="stat-box"        ><div class="num" id="sFilt">—</div><div class="lbl">After filter</div></div>
+      </div>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="card">
+      <div class="step-hdr"><span class="step-num">1</span>Highlight Duplicates</div>
+      <button class="btn btn-primary" id="hlBtn" disabled onclick="highlightDups()" style="width:100%">Highlight Duplicates</button>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card">
+      <div class="step-hdr"><span class="step-num">2</span>Remove Duplicates</div>
+      <p style="font-size:10px;color:var(--muted);margin-bottom:7px;">Keeps first occurrence of each Ticket ID</p>
+      <button class="btn btn-danger" id="ddBtn" disabled onclick="removeDups()" style="width:100%">Remove Duplicates</button>
+    </div>
+
+    <!-- Step 3: Subject filters -->
+    <div class="card">
+      <div class="step-hdr"><span class="step-num">3</span>Subject Filters</div>
+      <input class="txt-input" id="subjSearch" placeholder="Search…" oninput="renderSubjList()" style="margin-bottom:5px;">
+      <div class="filter-scroll" id="subjList"></div>
+      <div class="mt8">
+        <div class="sec-label">Custom keywords</div>
+        <textarea class="textarea-input" id="subjCustom" placeholder="One per line&#10;e.g. refund"></textarea>
+        <button class="btn btn-ghost mt6" onclick="addCustomSubj()" style="width:100%;font-size:11px;">+ Add</button>
+      </div>
+    </div>
+
+    <!-- Step 4: User filters -->
+    <div class="card">
+      <div class="step-hdr"><span class="step-num">4</span>User Filters</div>
+      <input class="txt-input" id="userSearch" placeholder="Search…" oninput="renderUserList()" style="margin-bottom:5px;">
+      <div class="filter-scroll" id="userList"></div>
+      <div class="mt8">
+        <div class="sec-label">Custom keywords</div>
+        <textarea class="textarea-input" id="userCustom" placeholder="One per line&#10;e.g. noreply"></textarea>
+        <button class="btn btn-ghost mt6" onclick="addCustomUser()" style="width:100%;font-size:11px;">+ Add</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Apply -->
+    <div class="card">
+      <div class="step-hdr"><span class="step-num">5</span>Apply Filters</div>
+      <button class="btn btn-primary" id="applyBtn" disabled onclick="applyFilters()" style="width:100%">Apply All Filters</button>
+    </div>
+
+    <!-- Step 6: Agents & Distribute -->
+    <div class="card">
+      <div class="step-hdr"><span class="step-num">6</span>Agents & Distribute</div>
+
+      <div class="sec-label" style="margin-bottom:5px;">Agent Roster</div>
+      <div class="agent-roster" id="agentRoster"></div>
+      <div class="add-agent-row">
+        <input type="text" id="newAgentName" placeholder="Agent name…" onkeydown="if(event.key==='Enter')addAgent()">
+        <button class="btn btn-ghost btn-sm" onclick="addAgent()">+ Add</button>
+      </div>
+
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+        <p style="font-size:10px;color:var(--muted);margin-bottom:8px;">Toggle Full / Half shift per agent above, then distribute.</p>
+        <button class="btn btn-success" id="distBtn" disabled onclick="distribute()" style="width:100%">Distribute Tickets</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <main>
+    <div class="empty" id="emptyState">
+      <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24">
+        <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3M13 21h6a2 2 0 002-2v-6a2 2 0 00-2-2h-6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+      </svg>
+      <h3>No file loaded</h3>
+      <p>Select a brand above, then upload<br>an XLS, XLSX, or CSV file to begin.</p>
+    </div>
+
+    <div id="mainPanel" style="display:none;">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('raw')">Raw Data</button>
+        <button class="tab-btn"        onclick="switchTab('dedup')">After Dedup</button>
+        <button class="tab-btn"        onclick="switchTab('filtered')">Filtered</button>
+        <button class="tab-btn"        onclick="switchTab('distributed')">Distributed</button>
+      </div>
+
+      <!-- RAW -->
+      <div class="tab-panel active" id="tab-raw">
+        <div class="legend">
+          <div class="l-dot" style="background:rgba(255,200,0,.2);border:1px solid rgba(255,200,0,.4);"></div>
+          <span style="color:var(--dup);">Duplicate ticket ID</span>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr id="rawHead"></tr></thead><tbody id="rawBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- DEDUP -->
+      <div class="tab-panel" id="tab-dedup">
+        <div class="legend">
+          <span class="tag tag-ok" id="dedupCount">0 unique tickets</span>
+          <span style="margin-left:6px;">First occurrence kept.</span>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr id="dedupHead"></tr></thead><tbody id="dedupBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- FILTERED -->
+      <div class="tab-panel" id="tab-filtered">
+        <div class="legend">
+          <span class="tag tag-ok" id="filteredCount">0 rows</span>
+          <span style="margin-left:6px;">Rows remaining after filters.</span>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr id="filteredHead"></tr></thead><tbody id="filteredBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- DISTRIBUTED -->
+      <div class="tab-panel" id="tab-distributed">
+        <div id="agentSections"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── CONSTANTS ── */
+const AGENT_COLORS = [
+  '#2563eb','#7c3aed','#059669','#dc2626','#d97706',
+  '#0891b2','#c026d3','#16a34a','#ea580c','#4f46e5',
+  '#0d9488','#db2777','#65a30d','#9333ea','#f59e0b'
+];
+
+const DEFAULT_AGENT_NAMES = [
+  'Akriti','Avoy','Azin','Sreelakshmi','Jessona','Aniket','Sajid','Ambili','Sayan'
+];
+
+const MA_SUBJ_DEFAULTS = [
+  'Ticket or Refer Ticket','test','http','spam','marketing','server issue','Message:',
+  'Dealership','Courtesy Alerts','Customer Lost','Device Expiration','Device Removal',
+  'Email Bounced','REPLY above this line','Your Document has been viewed','Your Transcript is ready',
+  'NEW ORDER request for dealership CIRCLE DOUBLE B TRAILERS (BCCapitalRTO)',
+  'NEW ORDER request for dealership Busenbark Sales Inc (Hopkins)',
+  'Subscription - Courtesy Alert -',
+  'NEW ORDER request for dealership',
+  'HomeTowneCap'
+];
+
+const MA_USER_DEFAULTS = [
+  'churn','Pirate Ship','connectivity','matrack-server','tracking',
+  'leads@optinmonster.com','info@matrackinc.com',
+  'support@pirateship.com','noreply_connectivitypro@korewireless.com',
+  'noreply@matrackinc.com','support@app.matrack.io','thomasnet@thomasnet.com'
+];
+
+const FF_SUBJ_DEFAULTS = [
+  'http','ref','ticket','marketing','spam','server','test','FP',
+  'Family1st Cancellation for','Payout for',
+  'USD refund initiated – order','Post Activation Feedback','RMA submission'
+];
+
+const FF_USER_DEFAULTS = [
+  'churnbuster','amazon','ebay',
+  'donotreply@amazon.com','ebay@ebay.com',
+  'support@family1st.io','no-reply@churnbuster.io','noreply@matrackinc.com',
+  'mailer@shopify.com'
+];
+
+/* ── STATE ── */
+let currentBrand = 'MA'; // 'MA' or 'FF'
+
+// Per-brand state
+const brandState = {
+  MA: {
+    rawData: [], cols: [],
+    dedupData: [], filteredData: [], distData: {},
+    hlDone: false, ddDone: false, filtDone: false, distDone: false,
+    subjTerms: [...MA_SUBJ_DEFAULTS],
+    userTerms: [...MA_USER_DEFAULTS],
+    subjChecked: new Set(MA_SUBJ_DEFAULTS.map(s => s.toLowerCase())),
+    userChecked: new Set(MA_USER_DEFAULTS.map(s => s.toLowerCase())),
+  },
+  FF: {
+    rawData: [], cols: [],
+    dedupData: [], filteredData: [], distData: {},
+    hlDone: false, ddDone: false, filtDone: false, distDone: false,
+    subjTerms: [...FF_SUBJ_DEFAULTS],
+    userTerms: [...FF_USER_DEFAULTS],
+    subjChecked: new Set(FF_SUBJ_DEFAULTS.map(s => s.toLowerCase())),
+    userChecked: new Set(FF_USER_DEFAULTS.map(s => s.toLowerCase())),
+  }
+};
+
+// Shared agent roster — agents selected per brand separately
+// agents: [{ name, colorIdx, maShift: 'full'|'half'|'off', ffShift: 'full'|'half'|'off' }]
+let agents = DEFAULT_AGENT_NAMES.map((name, i) => ({
+  name,
+  colorIdx: i % AGENT_COLORS.length,
+  maShift: 'full',
+  ffShift: 'full'
+}));
+
+function S() { return brandState[currentBrand]; }
+
+/* ── BRAND SWITCH ── */
+function switchBrand(brand) {
+  currentBrand = brand;
+  document.body.classList.toggle('ff-mode', brand === 'FF');
+  document.getElementById('btnMA').className = 'brand-btn' + (brand === 'MA' ? ' active-ma' : '');
+  document.getElementById('btnFF').className = 'brand-btn' + (brand === 'FF' ? ' active-ff' : '');
+  document.getElementById('headerTitle').textContent =
+    brand === 'MA' ? 'Matrack — Ticket Filter & Distribution' : 'Family1st — Ticket Filter & Distribution';
+
+  // Restore UI state for brand
+  const s = S();
+  const hasData = s.rawData.length > 0;
+  document.getElementById('emptyState').style.display = hasData ? 'none' : 'block';
+  document.getElementById('mainPanel').style.display = hasData ? 'block' : 'none';
+
+  if (hasData) {
+    renderRaw();
+    renderSubjList();
+    renderUserList();
+    updateStats();
+    if (s.ddDone) { renderDedup(); document.getElementById('dedupCount').textContent = s.dedupData.length + ' unique tickets'; }
+    if (s.filtDone) { renderFiltered(); document.getElementById('filteredCount').textContent = s.filteredData.length + ' rows'; }
+    if (s.distDone) renderDist();
+    syncPipeline();
+    syncButtons();
+  } else {
+    resetPipelineUI();
+    renderSubjList();
+    renderUserList();
+  }
+
+  renderAgentRoster();
+  switchTab('raw');
+}
+
+/* ── HELPERS ── */
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+function pStep(n, done) {
+  document.getElementById('ps' + n).classList.toggle('done', done);
+}
+
+function syncPipeline() {
+  const s = S();
+  pStep(1, s.rawData.length > 0);
+  pStep(2, s.hlDone);
+  pStep(3, s.ddDone);
+  pStep(4, s.filtDone);
+  pStep(5, s.distDone);
+}
+
+function syncButtons() {
+  const s = S();
+  const hasData = s.rawData.length > 0;
+  document.getElementById('hlBtn').disabled   = !hasData;
+  document.getElementById('ddBtn').disabled   = !s.hlDone;
+  document.getElementById('applyBtn').disabled = !s.ddDone && !hasData;
+  document.getElementById('distBtn').disabled = !s.filtDone;
+  document.getElementById('exportFilteredBtn').disabled = !s.filtDone;
+  document.getElementById('exportDistBtn').disabled = !s.distDone;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const map = { raw:0, dedup:1, filtered:2, distributed:3 };
+  document.querySelectorAll('.tab-btn')[map[name]].classList.add('active');
+}
+
+function col0()    { return S().cols[0] || ''; }
+function subjCol() { const c = S().cols; return c.find(x => x.toLowerCase().includes('subject')) || c[2] || ''; }
+function userCol() { const c = S().cols; return c.find(x => x.toLowerCase() === 'user') || c[c.length - 1] || ''; }
+
+function dupCount() {
+  const seen = {}, c = col0(), s = S();
+  let n = 0;
+  s.rawData.forEach(r => { const v = String(r[c]||''); if (seen[v]) n++; else seen[v]=true; });
+  return n;
+}
+
+function updateStats() {
+  const s = S();
+  document.getElementById('sTot').textContent  = s.rawData.length || '—';
+  document.getElementById('sDup').textContent  = s.rawData.length ? dupCount() : '—';
+  document.getElementById('sUniq').textContent = s.rawData.length ? new Set(s.rawData.map(r => String(r[col0()]||''))).size : '—';
+  document.getElementById('sFilt').textContent = s.filtDone ? s.filteredData.length : '—';
+}
+
+/* ── LOAD FILE ── */
+function loadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval:'' });
+      if (!json.length) { toast('File appears empty', 'err'); return; }
+      const s = S();
+      s.cols = Object.keys(json[0]);
+      s.rawData = json;
+      s.dedupData = []; s.filteredData = []; s.distData = {};
+      s.hlDone = s.ddDone = s.filtDone = s.distDone = false;
+      resetPipelineUI();
+      renderRaw();
+      renderSubjList();
+      renderUserList();
+      updateStats();
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('mainPanel').style.display = 'block';
+      syncButtons();
+      syncPipeline();
+      pStep(1, true);
+      switchTab('raw');
+      toast(`Loaded ${json.length} rows from "${file.name}"`, 'ok');
+    } catch(err) { toast('Read error: ' + err.message, 'err'); }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function resetPipelineUI() {
+  [1,2,3,4,5].forEach(n => pStep(n, false));
+  ['ddBtn','applyBtn','distBtn','exportFilteredBtn','exportDistBtn'].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+  document.getElementById('hlBtn').disabled = true;
+}
+
+/* ── TABLE RENDERING ── */
+function buildHead(trId) {
+  const tr = document.getElementById(trId);
+  tr.innerHTML = '';
+  S().cols.forEach(c => { const th = document.createElement('th'); th.textContent = c; tr.appendChild(th); });
+}
+
+function makeRow(row, isDup) {
+  const tr = document.createElement('tr');
+  if (isDup) tr.classList.add('dup-row');
+  S().cols.forEach((c, i) => {
+    const td = document.createElement('td');
+    let v = row[c] !== undefined ? row[c] : '';
+    if (v instanceof Date) v = v.toLocaleDateString();
+    td.textContent = v; td.title = String(v);
+    if (i === 0 && isDup) {
+      const tag = document.createElement('span');
+      tag.className = 'tag tag-dup'; tag.textContent = 'DUP'; tag.style.marginLeft = '5px';
+      td.appendChild(tag);
+    }
+    tr.appendChild(td);
+  });
+  return tr;
+}
+
+function renderRaw() {
+  const s = S();
+  buildHead('rawHead');
+  const tb = document.getElementById('rawBody');
+  tb.innerHTML = '';
+  if (!s.hlDone) {
+    s.rawData.forEach(r => tb.appendChild(makeRow(r, false))); return;
+  }
+  const seen = {}, c = col0();
+  s.rawData.forEach(r => {
+    const v = String(r[c]||'');
+    const isDup = !!seen[v]; seen[v] = true;
+    tb.appendChild(makeRow(r, isDup));
+  });
+}
+
+function renderDedup() {
+  buildHead('dedupHead');
+  const tb = document.getElementById('dedupBody');
+  tb.innerHTML = '';
+  S().dedupData.forEach(r => tb.appendChild(makeRow(r, false)));
+}
+
+function renderFiltered() {
+  buildHead('filteredHead');
+  const tb = document.getElementById('filteredBody');
+  tb.innerHTML = '';
+  S().filteredData.forEach(r => tb.appendChild(makeRow(r, false)));
+}
+
+function renderDist() {
+  const con = document.getElementById('agentSections');
+  con.innerHTML = '';
+  Object.entries(S().distData).forEach(([agentName, rows], idx) => {
+    const agent = agents.find(a => a.name === agentName);
+    const color = agent ? AGENT_COLORS[agent.colorIdx] : AGENT_COLORS[idx % AGENT_COLORS.length];
+    const shiftKey = currentBrand === 'MA' ? 'maShift' : 'ffShift';
+    const shift = agent ? agent[shiftKey] : 'full';
+
+    const block = document.createElement('div');
+    block.className = 'agent-block';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'agent-hdr';
+    hdr.innerHTML = `
+      <span class="agent-badge" style="background:${color}">${agentName.charAt(0)}</span>
+      <span class="a-name">${agentName}</span>
+      <span class="a-shift">${shift === 'half' ? '½ shift' : 'Full shift'}</span>
+      <span class="a-cnt">${rows.length} tickets</span>`;
+    block.appendChild(hdr);
+
+    const wrap = document.createElement('div'); wrap.className = 'agent-tbl-wrap';
+    const tbl = document.createElement('table');
+    const thead = document.createElement('thead');
+    const hrow = document.createElement('tr');
+    S().cols.forEach(c => { const th = document.createElement('th'); th.textContent = c; hrow.appendChild(th); });
+    thead.appendChild(hrow); tbl.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    rows.forEach(r => tbody.appendChild(makeRow(r, false)));
+    tbl.appendChild(tbody); wrap.appendChild(tbl); block.appendChild(wrap);
+    con.appendChild(block);
+  });
+}
+
+/* ── FILTER LISTS ── */
+function buildFilterList(listId, terms, checkedSet, colFn, searchId) {
+  const search = document.getElementById(searchId).value.toLowerCase();
+  const list = document.getElementById(listId);
+  list.innerHTML = '';
+  const s = S();
+  const src = s.ddDone ? s.dedupData : s.rawData;
+  const col = colFn();
+
+  terms.filter(t => !search || t.toLowerCase().includes(search)).forEach(term => {
+    const key = term.toLowerCase();
+    const cnt = src.filter(r => String(r[col]||'').toLowerCase().includes(key)).length;
+    const item = document.createElement('div'); item.className = 'f-item';
+    const cb = document.createElement('input'); cb.type = 'checkbox';
+    cb.id = listId + '_' + key; cb.checked = checkedSet.has(key);
+    cb.onchange = () => cb.checked ? checkedSet.add(key) : checkedSet.delete(key);
+    const lbl = document.createElement('label'); lbl.htmlFor = cb.id; lbl.textContent = term;
+    const badge = document.createElement('span'); badge.className = 'f-cnt'; badge.textContent = cnt;
+    item.appendChild(cb); item.appendChild(lbl); item.appendChild(badge);
+    list.appendChild(item);
+  });
+}
+
+function renderSubjList() {
+  const s = S();
+  buildFilterList('subjList', s.subjTerms, s.subjChecked, subjCol, 'subjSearch');
+}
+
+function renderUserList() {
+  const s = S();
+  buildFilterList('userList', s.userTerms, s.userChecked, userCol, 'userSearch');
+}
+
+function addCustomSubj() {
+  const ta = document.getElementById('subjCustom');
+  const s = S(); let added = 0;
+  ta.value.split('\n').map(x => x.trim()).filter(Boolean).forEach(line => {
+    if (!s.subjTerms.map(x => x.toLowerCase()).includes(line.toLowerCase())) {
+      s.subjTerms.push(line); s.subjChecked.add(line.toLowerCase()); added++;
+    }
+  });
+  ta.value = ''; renderSubjList();
+  toast(`Added ${added} subject keyword(s)`, 'ok');
+}
+
+function addCustomUser() {
+  const ta = document.getElementById('userCustom');
+  const s = S(); let added = 0;
+  ta.value.split('\n').map(x => x.trim()).filter(Boolean).forEach(line => {
+    if (!s.userTerms.map(x => x.toLowerCase()).includes(line.toLowerCase())) {
+      s.userTerms.push(line); s.userChecked.add(line.toLowerCase()); added++;
+    }
+  });
+  ta.value = ''; renderUserList();
+  toast(`Added ${added} user keyword(s)`, 'ok');
+}
+
+/* ── AGENT ROSTER ── */
+function renderAgentRoster() {
+  const roster = document.getElementById('agentRoster');
+  roster.innerHTML = '';
+  const shiftKey = currentBrand === 'MA' ? 'maShift' : 'ffShift';
+
+  agents.forEach((agent, idx) => {
+    const color = AGENT_COLORS[agent.colorIdx];
+    const shift = agent[shiftKey];
+
+    const row = document.createElement('div'); row.className = 'agent-row';
+
+    const dot = document.createElement('div');
+    dot.className = 'agent-dot'; dot.style.background = color;
+
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'agent-name-label'; nameLabel.textContent = agent.name;
+
+    const toggle = document.createElement('div'); toggle.className = 'shift-toggle';
+
+    const btnFull = document.createElement('button');
+    btnFull.textContent = 'Full';
+    if (shift === 'full') btnFull.className = 'active';
+    btnFull.onclick = () => { agent[shiftKey] = 'full'; renderAgentRoster(); };
+
+    const btnHalf = document.createElement('button');
+    btnHalf.textContent = 'Half';
+    if (shift === 'half') btnHalf.className = 'half-active';
+    btnHalf.onclick = () => { agent[shiftKey] = 'half'; renderAgentRoster(); };
+
+    toggle.appendChild(btnFull); toggle.appendChild(btnHalf);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn'; removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove agent';
+    removeBtn.onclick = () => { agents.splice(idx, 1); renderAgentRoster(); };
+
+    row.appendChild(dot); row.appendChild(nameLabel); row.appendChild(toggle); row.appendChild(removeBtn);
+    roster.appendChild(row);
+  });
+}
+
+function addAgent() {
+  const input = document.getElementById('newAgentName');
+  const name = input.value.trim();
+  if (!name) return;
+  if (agents.find(a => a.name.toLowerCase() === name.toLowerCase())) {
+    toast('Agent already exists', 'err'); return;
+  }
+  agents.push({ name, colorIdx: agents.length % AGENT_COLORS.length, maShift: 'full', ffShift: 'full' });
+  input.value = '';
+  renderAgentRoster();
+  toast(`Added agent "${name}"`, 'ok');
+}
+
+/* ── PIPELINE ACTIONS ── */
+function highlightDups() {
+  const s = S(); if (!s.rawData.length) return;
+  s.hlDone = true; renderRaw();
+  document.getElementById('ddBtn').disabled = false;
+  pStep(2, true);
+  toast(`Duplicates highlighted — ${dupCount()} duplicate rows`, 'info');
+}
+
+function removeDups() {
+  const s = S(); const c = col0(); const seen = new Set();
+  s.dedupData = s.rawData.filter(r => {
+    const v = String(r[c]||'');
+    if (seen.has(v)) return false; seen.add(v); return true;
+  });
+  s.ddDone = true;
+  renderDedup(); renderSubjList(); renderUserList();
+  document.getElementById('applyBtn').disabled = false;
+  document.getElementById('dedupCount').textContent = s.dedupData.length + ' unique tickets';
+  updateStats(); pStep(3, true); switchTab('dedup');
+  toast(`Removed ${s.rawData.length - s.dedupData.length} duplicates — ${s.dedupData.length} unique remain`, 'ok');
+}
+
+function applyFilters() {
+  const s = S(); const src = s.ddDone ? s.dedupData : s.rawData;
+  const sc = subjCol(), uc = userCol();
+
+  s.filteredData = src.filter(row => {
+    const subj = String(row[sc]||'').toLowerCase();
+    const user = String(row[uc]||'').toLowerCase();
+    for (const t of s.subjChecked) { if (subj.includes(t)) return false; }
+    for (const t of s.userChecked) { if (user.includes(t)) return false; }
+    return true;
+  });
+
+  s.filtDone = true;
+  renderFiltered();
+  document.getElementById('filteredCount').textContent = s.filteredData.length + ' rows';
+  document.getElementById('sFilt').textContent = s.filteredData.length;
+  document.getElementById('distBtn').disabled = false;
+  document.getElementById('exportFilteredBtn').disabled = false;
+  pStep(4, true); switchTab('filtered');
+  toast(`Filters applied — ${s.filteredData.length} rows remain (removed ${src.length - s.filteredData.length})`, 'ok');
+}
+
+function distribute() {
+  const s = S();
+  if (!s.filteredData.length) { toast('No filtered data to distribute', 'err'); return; }
+
+  const shiftKey = currentBrand === 'MA' ? 'maShift' : 'ffShift';
+  const activeAgents = agents.filter(a => a[shiftKey] !== 'off');
+
+  if (!activeAgents.length) { toast('No agents selected', 'err'); return; }
+
+  s.distData = {};
+  const pool = activeAgents.map(a => ({
+    name: a.name,
+    weight: a[shiftKey] === 'half' ? 0.5 : 1.0,
+    score: 0
+  }));
+  pool.forEach(p => s.distData[p.name] = []);
+
+  s.filteredData.forEach(row => {
+    pool.sort((a, b) => (a.score / a.weight) - (b.score / b.weight));
+    const pick = pool[0];
+    s.distData[pick.name].push(row);
+    pick.score++;
+  });
+
+  s.distDone = true;
+  renderDist();
+  document.getElementById('exportDistBtn').disabled = false;
+  pStep(5, true); switchTab('distributed');
+  const fullCount = activeAgents.filter(a => a[shiftKey] === 'full').length;
+  const halfCount = activeAgents.filter(a => a[shiftKey] === 'half').length;
+  toast(`Distributed ${s.filteredData.length} tickets across ${fullCount} full + ${halfCount} half-shift agents`, 'ok');
+}
+
+/* ── EXPORTS ── */
+function exportFiltered() {
+  const s = S(); if (!s.filteredData.length) return;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(s.filteredData), 'Filtered');
+  XLSX.writeFile(wb, currentBrand.toLowerCase() + '_filtered.xlsx');
+  toast('Exported filtered data', 'ok');
+}
+
+function exportDistributed() {
+  const s = S(); if (!Object.keys(s.distData).length) return;
+  const wb = XLSX.utils.book_new();
+  Object.entries(s.distData).forEach(([agent, rows]) => {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), agent);
+  });
+  XLSX.writeFile(wb, currentBrand.toLowerCase() + '_distributed.xlsx');
+  toast('Exported — one sheet per agent', 'ok');
+}
+
+/* ── DRAG & DROP ── */
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  const dt = new DataTransfer(); dt.items.add(f);
+  document.getElementById('fileInput').files = dt.files;
+  loadFile(document.getElementById('fileInput'));
+});
+
+/* ── INIT ── */
+renderAgentRoster();
+renderSubjList();
+renderUserList();
+</script>
+</body>
+</html>
